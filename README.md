@@ -1,7 +1,18 @@
-# About Me
+<h1 align="center">Samay SR</h1>
 
-# Experience
+**I**
+*am*
+**in**
+~~1st~~
+*2nd*
+**Year**
+>**`CSE`**
+`3rd Sem`
 
-# Projects
+1st | 2nd
+---| ---
+8.82 | 9.77
+MRD | MRD
 
-# Socials
+[Youtube](https://www.youtube.com/channel/UCnSeWiwolqTQCgvZbharNWw/featured)
+
