@@ -1,6 +1,3 @@
-# About Me
-Samay S R
-
 <h1 align="center">Samay SR</h1>
 
 **I**
@@ -17,5 +14,8 @@ Samay S R
 8.82 | 9.77
 MRD | MRD
 
-[Youtube](https://www.youtube.com/channel/UCnSeWiwolqTQCgvZbharNWw/featured)
-
+Profile | Links
+--- | ---
+Email | samaysurya912@gmail.com
+LinkedIn | [Samay](https://www.linkedin.com/in/samay-sr/)
+Youtube | [Youtube](https://www.youtube.com/channel/UCnSeWiwolqTQCgvZbharNWw/featured)
