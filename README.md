@@ -9,10 +9,10 @@
 >**`CSE`**
 `3rd Sem`
 
-1st | 2nd
----| ---
-8.82 | 9.77
-MRD | MRD
+1st | 2nd | 3rd
+---| ---| ---
+8.82 | 9.77 | 9.00
+MRD | MRD | CNR
 
 Profile | Links
 --- | ---
