@@ -4,15 +4,16 @@
 *am*
 **in**
 ~~1st~~
-*2nd*
+~~2nd~~
+*3rd*
 **Year**
 >**`CSE`**
-`3rd Sem`
+`5rd Sem`
 
-1st | 2nd | 3rd
----| ---| ---
-8.82 | 9.77 | 9.00
-MRD | MRD | CNR
+1st | 2nd | 3rd | 4th
+---| ---| ---| ---
+8.82 | 9.77 | 9.00 | 8.13
+MRD | MRD | CNR | DAC
 
 Profile | Links
 --- | ---
