@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TerraDrive: Open Roads (Simplified Demo)</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #222;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+            color: white;
+        }
+        canvas {
+            border: 2px solid #555;
+            background-color: #70b237; /* Default 'grassland' biome */
+        }
+        #hud {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 0.9em;
+        }
+        #hud p {
+            margin: 3px 0;
+        }
+        #controls-info {
+            margin-top: 10px;
+            font-size: 0.8em;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="hud">
+        <p>Speed: <span id="speedDisplay">0.0</span> km/h</p>
+        <p>Angle: <span id="angleDisplay">0</span>°</p>
+        <p>Checkpoints Remaining: <span id="checkpointsRemaining">0</span></p>
+        <p id="messageDisplay" style="color: yellow;"></p>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="controls-info">
+        <p>Controls: Arrow Keys or WASD to Drive | Spacebar for Handbrake</p>
+    </div>
+
+    <script>
+        // --- Canvas and Context ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const hudSpeed = document.getElementById('speedDisplay');
+        const hudAngle = document.getElementById('angleDisplay');
+        const hudCheckpoints = document.getElementById('checkpointsRemaining');
+        const hudMessage = document.getElementById('messageDisplay');
+
+        // --- Game Settings ---
+        canvas.width = 800;
+        canvas.height = 600;
+
+        const WORLD_WIDTH = 4000;
+        const WORLD_HEIGHT = 3000;
+
+        const CAR_WIDTH = 18;
+        const CAR_HEIGHT = 35;
+        const CAR_ACCELERATION = 0.08;
+        const CAR_DECELERATION_FRICTION = 0.03;
+        const CAR_BRAKE_POWER = 0.15;
+        const MAX_SPEED = 6;
+        const MAX_REVERSE_SPEED = -2;
+        const TURN_SPEED_BASE = 2.5; // Degrees per update cycle
+        const HANDBRAKE_FRICTION_MULTIPLIER = 5;
+        const HANDBRAKE_TURN_EFFECTIVENESS = 0.3; // How much turning is reduced/affected
+
+        // --- Player Car Object ---
+        const player = {
+            x: WORLD_WIDTH / 2 + 50, // Start near center, slightly offset
+            y: WORLD_HEIGHT / 2 + 100,
+            width: CAR_WIDTH,
+            height: CAR_HEIGHT,
+            speed: 0,
+            angle: 0, // 0 degrees is UP (North)
+            color: 'crimson',
+            wheelColor: '#333',
+            headlightColor: 'yellow',
+
+            // For collision detection of rotated rectangle
+            getCorners: function() {
+                const corners = [];
+                const rad = this.angle * Math.PI / 180;
+                const cosA = Math.cos(rad);
+                const sinA = Math.sin(rad);
+                const halfW = this.width / 2;
+                const halfH = this.height / 2;
+
+                // Center of car is (this.x, this.y)
+                // Top-left
+                corners.push({
+                    x: this.x + (-halfW * cosA - -halfH * sinA),
+                    y: this.y + (-halfW * sinA + -halfH * cosA)
+                });
+                // Top-right
+                corners.push({
+                    x: this.x + (halfW * cosA - -halfH * sinA),
+                    y: this.y + (halfW * sinA + -halfH * cosA)
+                });
+                // Bottom-right
+                corners.push({
+                    x: this.x + (halfW * cosA - halfH * sinA),
+                    y: this.y + (halfW * sinA + halfH * cosA)
+                });
+                // Bottom-left
+                corners.push({
+                    x: this.x + (-halfW * cosA - halfH * sinA),
+                    y: this.y + (-halfW * sinA + halfH * cosA)
+                });
+                return corners;
+            },
+            // Get Axis-Aligned Bounding Box of the rotated car
+            getAABB: function() {
+                const corners = this.getCorners();
+                let minX = corners[0].x, maxX = corners[0].x;
+                let minY = corners[0].y, maxY = corners[0].y;
+                for (let i = 1; i < corners.length; i++) {
+                    if (corners[i].x < minX) minX = corners[i].x;
+                    if (corners[i].x > maxX) maxX = corners[i].x;
+                    if (corners[i].y < minY) minY = corners[i].y;
+                    if (corners[i].y > maxY) maxY = corners[i].y;
+                }
+                return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+            }
+        };
+
+        // --- Camera Object ---
+        const camera = {
+            x: 0,
+            y: 0,
+            width: canvas.width,
+            height: canvas.height,
+            update: function() {
+                this.x = player.x - this.width / 2;
+                this.y = player.y - this.height / 2;
+                // Clamp camera to world boundaries
+                this.x = Math.max(0, Math.min(this.x, WORLD_WIDTH - this.width));
+                this.y = Math.max(0, Math.min(this.y, WORLD_HEIGHT - this.height));
+            }
+        };
+
+        // --- Input Handling ---
+        const keys = {}; // Store pressed keys
+        window.addEventListener('keydown', (e) => { keys[e.key.toLowerCase()] = true; keys[e.code] = true; });
+        window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; keys[e.code] = false; });
+
+        // --- World Elements (Simplified) ---
+        const biomes = [
+            { x: 0, y: 0, width: WORLD_WIDTH, height: WORLD_HEIGHT, color: '#6aa84f', name: 'Grassland' },
+            { x: 200, y: 200, width: 1500, height: 1200, color: '#f4a460', name: 'Desert' },
+            { x: WORLD_WIDTH - 1800, y: 300, width: 1600, height: 2000, color: '#a9a9a9', name: 'City' },
+            { x: 500, y: WORLD_HEIGHT - 1300, width: 2000, height: 1100, color: '#38761d', name: 'Forest' }
+        ];
+
+        const tracks = [ // A simple track path
+            { points: [
+                {x: 1000, y: 1000}, {x: 2000, y: 1000}, {x: 2200, y: 1200}, {x: 2200, y: 1800},
+                {x: 2000, y: 2000}, {x: 1000, y: 2000}, {x: 800, y: 1800}, {x: 800, y: 1200}
+            ], color: '#4a4a4a', roadColor: '#606060', lineWidth: 60, isLoop: true }
+        ];
+
+        let obstacles = [
+            { x: 1650, y: 1600, width: 120, height: 30, color: '#8B4513' }, // Log
+            { x: 1300, y: 1350, width: 60, height: 60, color: '#696969' },   // Rock
+        ];
+
+        let checkpoints = [];
+        function setupCheckpoints() {
+            checkpoints = [
+                { x: player.x + 150, y: player.y, radius: 20, color: 'rgba(0, 255, 255, 0.8)', collected: false, message: "Collect all checkpoints!" },
+                { x: tracks[0].points[1].x, y: tracks[0].points[1].y - 80, radius: 20, color: 'gold', collected: false },
+                { x: tracks[0].points[3].x - 80, y: tracks[0].points[3].y, radius: 20, color: 'gold', collected: false },
+                { x: tracks[0].points[5].x, y: tracks[0].points[5].y + 80, radius: 20, color: 'gold', collected: false },
+                { x: tracks[0].points[7].x + 80, y: tracks[0].points[7].y, radius: 20, color: 'gold', collected: false },
+            ];
+        }
+
+        function populateBiomeSpecificObstacles() {
+            // Trees in Forest
+            const forest = biomes.find(b => b.name === 'Forest');
+            for (let i = 0; i < 60; i++) {
+                obstacles.push({
+                    x: forest.x + Math.random() * forest.width,
+                    y: forest.y + Math.random() * forest.height,
+                    width: 15 + Math.random() * 20,
+                    height: 15 + Math.random() * 20,
+                    color: '#556B2F' // DarkOliveGreen for trees
+                });
+            }
+            // Rocks in Desert
+            const desert = biomes.find(b => b.name === 'Desert');
+            for (let i = 0; i < 30; i++) {
+                obstacles.push({
+                    x: desert.x + Math.random() * desert.width,
+                    y: desert.y + Math.random() * desert.height,
+                    width: 20 + Math.random() * 30,
+                    height: 20 + Math.random() * 30,
+                    color: '#B08D57' // Sandy rock color
+                });
+            }
+        }
+
+
+        // --- Game Logic Update Function ---
+        function update() {
+            const isAccelerating = keys['arrowup'] || keys['w'];
+            const isBrakingOrReversing = keys['arrowdown'] || keys['s'];
+            const isTurningLeft = keys['arrowleft'] || keys['a'];
+            const isTurningRight = keys['arrowright'] || keys['d'];
+            const isHandbraking = keys['space'];
+
+            // Acceleration / Braking
+            if (isAccelerating) {
+                player.speed += CAR_ACCELERATION;
+            }
+            if (isBrakingOrReversing) {
+                if (player.speed > 0) player.speed -= CAR_BRAKE_POWER; // Braking
+                else player.speed -= CAR_ACCELERATION * 0.7; // Reversing
+            }
+
+            // Friction & Handbrake
+            let currentFriction = CAR_DECELERATION_FRICTION;
+            if (isHandbraking && player.speed > 0.1) { // Handbrake only effective if moving forward somewhat
+                currentFriction *= HANDBRAKE_FRICTION_MULTIPLIER;
+            }
+
+            if (player.speed > 0) {
+                player.speed -= currentFriction;
+                if (player.speed < 0) player.speed = 0;
+            } else if (player.speed < 0) {
+                player.speed += currentFriction; // Friction also applies to reverse
+                if (player.speed > 0) player.speed = 0;
+            }
+
+            // Clamp speed
+            player.speed = Math.max(MAX_REVERSE_SPEED, Math.min(player.speed, MAX_SPEED));
+
+            // Turning
+            if (Math.abs(player.speed) > 0.1) { // Only turn if moving
+                let turnRate = TURN_SPEED_BASE * (player.speed / MAX_SPEED); // More effective turning at higher speeds
+                if (player.speed < 0) turnRate *= -1; // Invert turn for reverse
+
+                if (isHandbraking) {
+                    turnRate *= HANDBRAKE_TURN_EFFECTIVENESS; // Less controlled turning with handbrake
+                }
+
+                if (isTurningLeft) player.angle -= turnRate;
+                if (isTurningRight) player.angle += turnRate;
+            }
+            player.angle %= 360;
+
+            // Update position
+            const radians = player.angle * Math.PI / 180;
+            const prevX = player.x;
+            const prevY = player.y;
+            player.x += player.speed * Math.sin(radians);
+            player.y -= player.speed * Math.cos(radians); // Y is inverted in canvas
+
+            // --- Collision Detection & Response ---
+            // World boundaries collision
+            const playerAABB = player.getAABB(); // Use AABB of rotated car for boundary check
+            if (playerAABB.x < 0) { player.x = prevX; player.speed *= -0.3; }
+            if (playerAABB.x + playerAABB.width > WORLD_WIDTH) { player.x = prevX; player.speed *= -0.3; }
+            if (playerAABB.y < 0) { player.y = prevY; player.speed *= -0.3; }
+            if (playerAABB.y + playerAABB.height > WORLD_HEIGHT) { player.y = prevY; player.speed *= -0.3; }
+
+
+            // Obstacle collision (using player's rotated AABB vs obstacle AABB)
+            for (const obs of obstacles) {
+                const obsAABB = { x: obs.x, y: obs.y, width: obs.width, height: obs.height };
+                if (playerAABB.x < obsAABB.x + obsAABB.width &&
+                    playerAABB.x + playerAABB.width > obsAABB.x &&
+                    playerAABB.y < obsAABB.y + obsAABB.height &&
+                    playerAABB.y + playerAABB.height > obsAABB.y) {
+                    
+                    // Simple push-out and speed reduction
+                    player.x = prevX;
+                    player.y = prevY;
+                    player.speed *= -0.4; // Bounce back with some energy loss
+                    player.angle += (Math.random() - 0.5) * 5; // Slight random angle change
+                    break; 
+                }
+            }
+
+            // Checkpoint collection
+            let remainingCount = 0;
+            for (const cp of checkpoints) {
+                if (!cp.collected) {
+                    const dist = Math.sqrt((player.x - cp.x)**2 + (player.y - cp.y)**2);
+                    if (dist < cp.radius + Math.max(player.width, player.height) / 2) {
+                        cp.collected = true;
+                        hudMessage.textContent = cp.message || "Checkpoint collected!";
+                        setTimeout(() => { hudMessage.textContent = ""; }, 2000);
+                    } else {
+                        remainingCount++;
+                    }
+                }
+            }
+            hudCheckpoints.textContent = remainingCount;
+            if (remainingCount === 0 && checkpoints.length > 0) {
+                 hudMessage.textContent = "All checkpoints collected! Race again?";
+                 setTimeout(() => {
+                    setupCheckpoints(); // Reset for another round
+                    hudMessage.textContent = "";
+                 }, 3000);
+            }
+
+            // Update camera
+            camera.update();
+
+            // Update HUD
+            hudSpeed.textContent = (player.speed * 20).toFixed(1); // Arbitrary speed unit
+            hudAngle.textContent = Math.round(player.angle);
+        }
+
+        // --- Drawing Function ---
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear viewport
+
+            // Apply camera transform
+            ctx.save();
+            ctx.translate(-camera.x, -camera.y);
+
+            // Draw Biomes (draw largest first or manage layers)
+            biomes.sort((a,b) => (b.width*b.height) - (a.width*a.height)); // Draw larger biomes first as rough layers
+            biomes.forEach(biome => {
+                if (biome.x + biome.width > camera.x && biome.x < camera.x + camera.width &&
+                    biome.y + biome.height > camera.y && biome.y < camera.y + camera.height) {
+                    ctx.fillStyle = biome.color;
+                    ctx.fillRect(biome.x, biome.y, biome.width, biome.height);
+                }
+            });
+
+            // Draw Tracks
+            tracks.forEach(track => {
+                ctx.beginPath();
+                ctx.moveTo(track.points[0].x, track.points[0].y);
+                for (let i = 1; i < track.points.length; i++) {
+                    ctx.lineTo(track.points[i].x, track.points[i].y);
+                }
+                if (track.isLoop) ctx.closePath();
+                
+                // Draw wider background for track "shoulders" or base
+                ctx.strokeStyle = track.color; // Darker outline or shoulder
+                ctx.lineWidth = track.lineWidth + 10; // Slightly wider for shoulder
+                ctx.stroke();
+
+                // Draw main road surface
+                ctx.strokeStyle = track.roadColor; // Main road color
+                ctx.lineWidth = track.lineWidth;
+                ctx.stroke();
+
+                // City "road lines" (very simple)
+                const city = biomes.find(b => b.name === 'City');
+                if (city && track.points.some(p => p.x > city.x && p.x < city.x + city.width)) { // If track is in city
+                    ctx.strokeStyle = 'yellow';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([15, 10]);
+                    // Draw along the track path, slightly offset
+                    // This is complex to do perfectly, simple approximation:
+                    for (let i = 0; i < track.points.length -1; i++){
+                         const p1 = track.points[i];
+                         const p2 = track.points[i+1];
+                         ctx.beginPath();
+                         ctx.moveTo(p1.x, p1.y);
+                         ctx.lineTo(p2.x, p2.y);
+                         ctx.stroke();
+                    }
+                    if(track.isLoop) { // connect last to first
+                        ctx.beginPath();
+                        ctx.moveTo(track.points[track.points.length-1].x, track.points[track.points.length-1].y);
+                        ctx.lineTo(track.points[0].x, track.points[0].y);
+                        ctx.stroke();
+                    }
+                    ctx.setLineDash([]);
+                }
+            });
+
+            // Draw Obstacles
+            obstacles.forEach(obs => {
+                if (obs.x + obs.width > camera.x && obs.x < camera.x + camera.width &&
+                    obs.y + obs.height > camera.y && obs.y < camera.y + camera.height) {
+                    ctx.fillStyle = obs.color;
+                    ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                }
+            });
+
+            // Draw Checkpoints
+            checkpoints.forEach(cp => {
+                if (!cp.collected) {
+                    if (cp.x + cp.radius > camera.x && cp.x - cp.radius < camera.x + camera.width &&
+                        cp.y + cp.radius > camera.y && cp.y - cp.radius < camera.y + camera.height) {
+                        ctx.beginPath();
+                        ctx.arc(cp.x, cp.y, cp.radius, 0, Math.PI * 2);
+                        ctx.fillStyle = cp.color;
+                        ctx.fill();
+                        ctx.strokeStyle = 'black';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    }
+                }
+            });
+
+            // Draw Player Car
+            ctx.save();
+            ctx.translate(player.x, player.y);
+            ctx.rotate(player.angle * Math.PI / 180);
+            // Car Body
+            ctx.fillStyle = player.color;
+            ctx.fillRect(-player.width / 2, -player.height / 2, player.width, player.height);
+            // Windshield (front indicator)
+            ctx.fillStyle = 'aliceblue';
+            ctx.fillRect(-player.width / 2 + 2, -player.height / 2 + 2, player.width - 4, player.height / 5);
+            // Headlights
+            ctx.fillStyle = player.headlightColor;
+            ctx.fillRect(-player.width/2 + 1, -player.height/2 - 2, player.width/3, 4);
+            ctx.fillRect(player.width/2 - player.width/3 -1, -player.height/2 - 2, player.width/3, 4);
+            // Wheels (simple representation)
+            ctx.fillStyle = player.wheelColor;
+            const wheelW = player.width / 3;
+            const wheelH = player.height / 4;
+            ctx.fillRect(-player.width/2 - wheelW/2 +2 , -player.height/2 + wheelH/2, wheelW, wheelH); // Front-Left
+            ctx.fillRect( player.width/2 - wheelW/2 -2 , -player.height/2 + wheelH/2, wheelW, wheelH); // Front-Right
+            ctx.fillRect(-player.width/2 - wheelW/2 +2 ,  player.height/2 - wheelH*1.5, wheelW, wheelH); // Rear-Left
+            ctx.fillRect( player.width/2 - wheelW/2 -2 ,  player.height/2 - wheelH*1.5, wheelW, wheelH); // Rear-Right
+            ctx.restore(); // Restore car transform
+
+            ctx.restore(); // Restore camera transform
+        }
+
+        // --- Game Loop ---
+        let lastTime = 0;
+        function gameLoop(timestamp) {
+            const deltaTime = timestamp - lastTime; // For frame-rate independent physics if needed
+            lastTime = timestamp;
+
+            update();
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- Initialization ---
+        function init() {
+            populateBiomeSpecificObstacles();
+            setupCheckpoints();
+            camera.update(); // Initial camera position
+            hudCheckpoints.textContent = checkpoints.filter(cp => !cp.collected).length;
+            requestAnimationFrame(gameLoop); // Start the game loop
+            console.log("TerraDrive: Open Roads (Simplified Demo) Loaded.");
+            console.log("World Size:", WORLD_WIDTH, "x", WORLD_HEIGHT);
+        }
+
+        init();
+    </script>
+</body>
+</html>

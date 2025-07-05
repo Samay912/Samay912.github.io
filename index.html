@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Samay SR's Silly Projects</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+      .project-card {
+        transition: all 0.3s ease;
+        transform-style: preserve-3d;
+      }
+      .project-card:hover {
+        transform: translateY(-5px) rotateY(5deg);
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
+          0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      }
+      .project-image {
+        height: 200px;
+        object-fit: cover;
+        object-position: top;
+      }
+      .silly-text {
+        font-family: "Comic Sans MS", cursive, sans-serif;
+      }
+      .bounce {
+        animation: bounce 2s infinite;
+      }
+      @keyframes bounce {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-10px);
+        }
+      }
+    </style>
+  </head>
+  <body class="bg-gradient-to-br from-purple-100 to-blue-100 min-h-screen">
+    <header
+      class="bg-white bg-opacity-80 backdrop-blur-md sticky top-0 z-50 shadow-sm"
+    >
+      <div class="container mx-auto px-4 py-6">
+        <div class="flex justify-between items-center">
+          <div class="flex items-center space-x-2">
+            <i class="fas fa-laugh-squint text-3xl text-purple-500 bounce"></i>
+            <h1 class="text-2xl font-bold silly-text text-purple-700">
+              Samay SR's <span class="text-pink-500">Silly</span> Projects
+            </h1>
+          </div>
+          <button id="mobile-menu-button" class="md:hidden text-purple-700">
+            <i class="fas fa-bars text-2xl"></i>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-12">
+      <section class="text-center mb-20">
+        <div class="max-w-3xl mx-auto">
+          <h2
+            class="text-4xl md:text-5xl font-bold mb-6 silly-text text-purple-800"
+          >
+            Welcome to My <span class="text-pink-500">Silly</span> World!
+          </h2>
+          <p class="text-lg text-gray-700 mb-8">
+            I'm Samay SR, and these are my ridiculous, absurd, and sometimes
+            accidentally brilliant creations. Enjoy the madness!
+          </p>
+        </div>
+      </section>
+
+      <section id="projects" class="mb-20">
+        <h2
+          class="text-3xl font-bold mb-10 text-center silly-text text-purple-700"
+        >
+          My <span class="text-pink-500">Silly</span> Creations
+        </h2>
+
+        <div
+          id="project-container"
+          class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+        >
+          <!-- Projects will be loaded here by JavaScript -->
+        </div>
+
+        <div class="flex justify-center mt-10">
+          <button
+            id="load-more"
+            class="bg-white hover:bg-gray-100 text-purple-700 border border-purple-300 px-6 py-2 rounded-full font-medium transition"
+          >
+            Load More Nonsense <i class="fas fa-plus-circle ml-2"></i>
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="bg-white bg-opacity-80 py-8">
+      <div class="container mx-auto px-4 text-center text-gray-600">
+        <p class="mb-2">
+          Made with <i class="fas fa-heart text-pink-500"></i> and
+          <i class="fas fa-laugh-squint text-purple-500"></i> by Samay SR
+        </p>
+        <p class="text-sm">All projects are 100% silly and 50% functional</p>
+      </div>
+    </footer>
+
+    <script>
+      // Mobile menu toggle
+      document
+        .getElementById("mobile-menu-button")
+        .addEventListener("click", function () {
+          const menu = document.getElementById("mobile-menu");
+          menu.classList.toggle("hidden");
+        });
+
+      // Sample projects data
+      const projects = [
+        {
+          title: "Mouse Kaleidoscope",
+          description:
+            "A mesmerizing app that turns your mouse movements into a psychedelic kaleidoscope of colors and shapes. Warning: may cause dizziness.",
+          url: "/projects/kaleidoscope.html",
+        },
+        {
+          title: "Car Game",
+          description:
+            "A simple car game where you drive and collect checkpoints.",
+          url: "/projects/cargame.html",
+        },
+      ];
+
+      // Display projects
+      const projectContainer = document.getElementById("project-container");
+      let displayedProjects = 3;
+
+      function displayProjects(count) {
+        projectContainer.innerHTML = "";
+        for (let i = 0; i < Math.min(count, projects.length); i++) {
+          const project = projects[i];
+          const projectElement = document.createElement("div");
+          projectElement.className =
+            "project-card bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition";
+          projectElement.innerHTML = `
+                    <div class="p-6">
+                        <h3 class="text-xl font-bold mb-2 text-purple-700">${project.title}</h3>
+                        <p class="text-gray-600 mb-4">${project.description}</p>
+                        <a href=${project.url}>
+                        <button class="mt-4 text-pink-500 hover:text-pink-600 font-medium flex items-center">
+                            View Project <i class="fas fa-arrow-right ml-2"></i>
+                        </button>
+                        </a>
+                    </div>
+                `;
+          projectContainer.appendChild(projectElement);
+        }
+      }
+
+      // Initial display
+      displayProjects(displayedProjects);
+
+      // Load more projects
+      document
+        .getElementById("load-more")
+        .addEventListener("click", function () {
+          displayedProjects = Math.min(displayedProjects + 3, projects.length);
+          displayProjects(displayedProjects);
+
+          if (displayedProjects >= projects.length) {
+            this.disabled = true;
+            this.innerHTML = 'No More Nonsense <i class="fas fa-meh ml-2"></i>';
+            this.classList.remove("hover:bg-gray-100");
+            this.classList.add("bg-gray-200", "cursor-not-allowed");
+          }
+        });
+
+      // Smooth scrolling for anchor links
+      document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
+        anchor.addEventListener("click", function (e) {
+          e.preventDefault();
+          document.querySelector(this.getAttribute("href")).scrollIntoView({
+            behavior: "smooth",
+          });
+
+          // Close mobile menu if open
+          const mobileMenu = document.getElementById("mobile-menu");
+          if (!mobileMenu.classList.contains("hidden")) {
+            mobileMenu.classList.add("hidden");
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

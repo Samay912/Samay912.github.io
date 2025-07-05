@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mouse Kaleidoscope</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden; /* Hide scrollbars */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: #0a0a0a; /* Dark background for the page */
+      }
+      /* Style for a small instruction text */
+      .instructions {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        color: #cccccc;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="instructions">
+      Click and drag mouse to draw | Press 'C' to clear
+    </div>
+    <script>
+      // Number of symmetrical slices
+      let symmetry = 8;
+      // Angle for each slice
+      let angle;
+
+      // Color variables for drawing
+      let hueValue = 0;
+
+      function setup() {
+        let canvasSize = Math.min(windowWidth - 40, windowHeight - 40); // Adjust canvas size to fit window
+        createCanvas(canvasSize, canvasSize); // Create a square canvas
+        angleMode(DEGREES); // Use degrees for rotation
+        background(10); // Set a dark background for the canvas
+        strokeWeight(2); // Set the thickness of the lines
+
+        // Calculate the angle for each symmetrical slice
+        angle = 360 / symmetry;
+
+        // Use HSB color mode for vibrant, cycling colors
+        colorMode(HSB, 360, 100, 100, 100);
+      }
+
+      function draw() {
+        // Translate the origin to the center of the canvas
+        translate(width / 2, height / 2);
+
+        // Check if the mouse is pressed to draw
+        if (mouseIsPressed) {
+          // Get current and previous mouse positions relative to the center
+          let mx = mouseX - width / 2;
+          let my = mouseY - height / 2;
+          let pmx = pmouseX - width / 2;
+          let pmy = pmouseY - height / 2;
+
+          // Check if the mouse is within the canvas boundaries before drawing
+          // This helps prevent drawing if the mouse is pressed outside and dragged in
+          if (
+            mouseX > 0 &&
+            mouseX < width &&
+            mouseY > 0 &&
+            mouseY < height &&
+            pmouseX > 0 &&
+            pmouseX < width &&
+            pmouseY > 0 &&
+            pmouseY < height
+          ) {
+            // Cycle through hues for a rainbow effect
+            hueValue += 1;
+            if (hueValue > 360) {
+              hueValue = 0;
+            }
+            stroke(hueValue, 90, 90, 80); // Set stroke color with transparency
+
+            // Loop through each slice of the kaleidoscope
+            for (let i = 0; i < symmetry; i++) {
+              rotate(angle); // Rotate by the calculated angle
+
+              // Draw the original line
+              line(mx, my, pmx, pmy);
+
+              // Reflect across the Y-axis
+              push(); // Save the current transformation state
+              scale(1, -1); // Flip vertically
+              line(mx, my, pmx, pmy); // Draw the reflected line
+              pop(); // Restore the previous transformation state
+            }
+          }
+        }
+      }
+
+      // Clear the canvas when 'c' or 'C' is pressed
+      function keyPressed() {
+        if (key === "c" || key === "C") {
+          // Reset background to clear drawings
+          // Need to redraw the background from the main draw context (0,0)
+          // before any translations happen.
+          // A simpler way for now is to just set background in setup
+          // and have a full refresh by re-calling setup or just clearing.
+          // For this example, we'll just redraw the background directly.
+          push();
+          resetMatrix(); // Resets transformations to default
+          background(10);
+          pop();
+        }
+      }
+
+      // Adjust canvas size if window is resized
+      function windowResized() {
+        let canvasSize = Math.min(windowWidth - 40, windowHeight - 40);
+        resizeCanvas(canvasSize, canvasSize);
+        push();
+        resetMatrix();
+        background(10); // Redraw background on resize
+        pop();
+      }
+    </script>
+  </body>
+</html>
