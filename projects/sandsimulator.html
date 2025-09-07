@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>High-performance Sand Simulator (HTML + JS)</title>
+    <style>
+      :root {
+        --bg: #0b0b0b;
+        --panel: #121212cc;
+        --muted: #bdbdbd;
+        --accent: #6fb3ff;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        background: var(--bg);
+        color: var(--muted);
+        font-family: Inter, Segoe UI, Roboto, system-ui, Arial;
+      }
+      .wrap {
+        display: flex;
+        gap: 12px;
+        padding: 12px;
+        height: 100%;
+        box-sizing: border-box;
+      }
+      .left {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        align-items: flex-start;
+      }
+      /* the logical canvas has low resolution (W x H) then CSS scales it */
+      .viewport {
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+        background: #000;
+      }
+      canvas {
+        image-rendering: pixelated;
+        display: block;
+        touch-action: none;
+      }
+      .panel {
+        background: var(--panel);
+        padding: 10px;
+        border-radius: 8px;
+        min-width: 260px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+      .btn {
+        background: #151515;
+        border: 1px solid #222;
+        padding: 6px 8px;
+        border-radius: 6px;
+        color: var(--muted);
+        cursor: pointer;
+      }
+      .btn.active {
+        outline: 2px solid var(--accent);
+      }
+      .label {
+        font-size: 13px;
+        color: var(--muted);
+        margin-right: 6px;
+      }
+      input[type="range"] {
+        width: 120px;
+      }
+      small {
+        color: #9aa0a6;
+      }
+      .kbd {
+        background: #0f0f0f;
+        border: 1px solid #222;
+        padding: 4px 6px;
+        border-radius: 4px;
+        font-family: monospace;
+      }
+      footer {
+        position: fixed;
+        right: 12px;
+        bottom: 10px;
+        color: #888;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="left">
+        <div class="viewport" id="viewport" style="width: 960px; height: 640px">
+          <canvas id="gfx"></canvas>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center">
+          <button class="btn" id="pauseBtn">Pause</button>
+          <button class="btn" id="clearBtn">Clear</button>
+          <div style="color: var(--muted); padding-left: 6px">
+            FPS: <span id="fps">0</span>
+          </div>
+          <div style="color: var(--muted); padding-left: 8px">
+            Particles: <span id="particles">0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="row">
+          <div class="label">Material:</div>
+          <button class="btn material-btn active" data-mat="2">Sand (2)</button>
+          <button class="btn material-btn" data-mat="3">Water (3)</button>
+          <button class="btn material-btn" data-mat="1">Wall (1)</button>
+          <button class="btn material-btn" data-mat="0">Erase (0)</button>
+        </div>
+
+        <div class="row">
+          <div class="label">Brush</div>
+          <input id="brushRange" type="range" min="1" max="64" value="6" />
+          <div style="width: 36px; text-align: right">
+            <small id="brushVal">6</small>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="label">Grid scale</div>
+          <select id="scaleSel" class="btn">
+            <option value="2">2 px</option>
+            <option value="3">3 px</option>
+            <option value="4" selected>4 px</option>
+            <option value="6">6 px</option>
+            <option value="8">8 px</option>
+          </select>
+          <div style="margin-left: 8px">
+            <small>Increase for big speed gains</small>
+          </div>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid #222; margin: 8px 0" />
+
+        <div style="font-size: 13px; color: var(--muted); line-height: 1.4">
+          <div><b>Controls</b></div>
+          <div style="margin-top: 6px">
+            <span class="kbd">1</span> Sand &nbsp;
+            <span class="kbd">2</span> Water &nbsp;
+            <span class="kbd">3</span> Wall &nbsp;
+            <span class="kbd">0</span> Erase
+          </div>
+          <div style="margin-top: 6px">
+            <span class="kbd">Space</span> Pause &nbsp;
+            <span class="kbd">C</span> Clear
+          </div>
+          <div style="margin-top: 6px">
+            Left drag draw, Right drag erase. Wheel -> brush size
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      Highly optimized JS version — scale up canvas for performance. Source:
+      assistant
+    </footer>
+
+    <script>
+      /* High-performance falling-sand simulator (JS)
+   - Flat Uint8Array grid
+   - Active queue for changed particles only
+   - Small canvas (W x H) scaled up via CSS for fast render
+*/
+
+      (() => {
+        // Config (you can tweak)
+        let GRID_SCALE = parseInt(
+          document.getElementById("scaleSel").value,
+          10
+        ); // pixels per cell when displayed
+        const BASE_W = 960; // viewport width in CSS pixels
+        const BASE_H = 640; // viewport height in CSS pixels
+
+        // Materials
+        const EMPTY = 0,
+          WALL = 1,
+          SAND = 2,
+          WATER = 3;
+
+        // Colors (RGBA)
+        const COLORS = new Uint8ClampedArray([
+          // EMPTY (dark)
+          7, 7, 7, 255,
+          // WALL (grey)
+          100, 100, 100, 255,
+          // SAND
+          194, 178, 128, 255,
+          // WATER
+          50, 110, 200, 255,
+        ]);
+
+        // Tunable behavior
+        const SAND_SLIDE_PROB = 0.85;
+        const WATER_FLOW_CHANCE = 0.92;
+        const MAX_ACTIVE = 1_500_000; // safety cap
+
+        // DOM
+        const gfx = document.getElementById("gfx");
+        const viewport = document.getElementById("viewport");
+        const fpsEl = document.getElementById("fps");
+        const particlesEl = document.getElementById("particles");
+        const pauseBtn = document.getElementById("pauseBtn");
+        const clearBtn = document.getElementById("clearBtn");
+        const brushRange = document.getElementById("brushRange");
+        const brushVal = document.getElementById("brushVal");
+        const scaleSel = document.getElementById("scaleSel");
+
+        // state
+        let paused = false;
+        let brush = parseInt(brushRange.value, 10);
+        let currentMat = SAND;
+        let W, H; // grid dimensions (in cells)
+        let grid, pixels; // Uint8Array for grid, Uint8ClampedArray for image pixels (RGBA)
+        let activeCur, activeNext, visited; // active queues + visited flags
+        let imageData; // ImageData object to put into canvas
+        let lastTime = performance.now();
+        let frameCount = 0;
+        let fps = 0;
+        let totalParticles = 0;
+
+        // Initialize given GRID_SCALE
+        function initGrid() {
+          GRID_SCALE = parseInt(scaleSel.value, 10);
+          // choose logical canvas size to match viewport CSS size / scale
+          W = Math.floor(BASE_W / GRID_SCALE);
+          H = Math.floor(BASE_H / GRID_SCALE);
+
+          // set canvas logical size small and scale up with CSS
+          gfx.width = W;
+          gfx.height = H;
+          gfx.style.width = W * GRID_SCALE + "px";
+          gfx.style.height = H * GRID_SCALE + "px";
+
+          // viewport size match (for centering)
+          viewport.style.width = W * GRID_SCALE + "px";
+          viewport.style.height = H * GRID_SCALE + "px";
+
+          grid = new Uint8Array(W * H);
+          pixels = new Uint8ClampedArray(W * H * 4); // RGBA for ImageData
+          imageData = new ImageData(pixels, W, H);
+
+          activeCur = [];
+          activeNext = [];
+          visited = new Uint8Array(W * H); // 0 or 1
+
+          // fill borders with WALL
+          for (let x = 0; x < W; x++) {
+            setCell(0, x, WALL);
+            setCell(H - 1, x, WALL);
+          }
+          for (let y = 0; y < H; y++) {
+            setCell(y, 0, WALL);
+            setCell(y, W - 1, WALL);
+          }
+
+          // fill pixels array for everything else (empty)
+          fillPixels();
+
+          totalParticles = countParticles();
+          particlesEl.textContent = totalParticles;
+        }
+
+        function fillPixels() {
+          // fill pixels from grid
+          let p = 0;
+          for (let i = 0; i < W * H; i++) {
+            const mat = grid[i];
+            const cIdx = mat * 4;
+            pixels[p++] = COLORS[cIdx];
+            pixels[p++] = COLORS[cIdx + 1];
+            pixels[p++] = COLORS[cIdx + 2];
+            pixels[p++] = COLORS[cIdx + 3];
+          }
+        }
+
+        function setCell(y, x, mat) {
+          if (x < 0 || x >= W || y < 0 || y >= H) return;
+          const id = y * W + x;
+          const old = grid[id];
+          if (old === mat) return;
+          grid[id] = mat;
+          const p = id * 4;
+          const cIdx = mat * 4;
+          pixels[p] = COLORS[cIdx];
+          pixels[p + 1] = COLORS[cIdx + 1];
+          pixels[p + 2] = COLORS[cIdx + 2];
+          pixels[p + 3] = COLORS[cIdx + 3];
+          // add id to activeCur so simulation will check it
+          ensureActiveAdd(id);
+        }
+
+        function getCell(y, x) {
+          if (x < 0 || x >= W || y < 0 || y >= H) return WALL;
+          return grid[y * W + x];
+        }
+
+        function ensureActiveAdd(id) {
+          if (visited[id]) return;
+          visited[id] = 1;
+          activeCur.push(id);
+        }
+
+        function addNeighborsToNext(id) {
+          const y = (id / W) | 0;
+          const x = id % W;
+          // small neighborhood (radius 2) to catch nearby changes
+          const y0 = Math.max(1, y - 2),
+            y1 = Math.min(H - 2, y + 2);
+          const x0 = Math.max(1, x - 2),
+            x1 = Math.min(W - 2, x + 2);
+          for (let yy = y0; yy <= y1; yy++) {
+            let base = yy * W;
+            for (let xx = x0; xx <= x1; xx++) {
+              const nid = base + xx;
+              if (!visited[nid]) {
+                visited[nid] = 1;
+                activeNext.push(nid);
+              }
+            }
+          }
+        }
+
+        // Painting helper: circle brush
+        function paintCircle(cellY, cellX, radius, mat) {
+          const r = radius | 0;
+          const y0 = Math.max(1, cellY - r);
+          const y1 = Math.min(H - 2, cellY + r);
+          const x0 = Math.max(1, cellX - r);
+          const x1 = Math.min(W - 2, cellX + r);
+          for (let yy = y0; yy <= y1; yy++) {
+            const dy = yy - cellY;
+            const dy2 = dy * dy;
+            let base = yy * W;
+            for (let xx = x0; xx <= x1; xx++) {
+              const dx = xx - cellX;
+              if (dx * dx + dy2 <= r * r) {
+                const id = base + xx;
+                if (mat === EMPTY) {
+                  if (grid[id] !== EMPTY) {
+                    grid[id] = EMPTY;
+                    const p = id * 4;
+                    pixels[p] = COLORS[0];
+                    pixels[p + 1] = COLORS[1];
+                    pixels[p + 2] = COLORS[2];
+                    pixels[p + 3] = COLORS[3];
+                    ensureActiveAdd(id);
+                    addNeighborsToNext(id);
+                  }
+                } else if (mat === WALL) {
+                  if (grid[id] !== WALL) {
+                    grid[id] = WALL;
+                    const p = id * 4;
+                    pixels[p] = COLORS[4];
+                    pixels[p + 1] = COLORS[5];
+                    pixels[p + 2] = COLORS[6];
+                    pixels[p + 3] = COLORS[7];
+                    ensureActiveAdd(id);
+                    addNeighborsToNext(id);
+                  }
+                } else {
+                  // sand or water
+                  if (grid[id] === EMPTY) {
+                    grid[id] = mat;
+                    const p = id * 4;
+                    const mi = mat * 4;
+                    pixels[p] = COLORS[mi];
+                    pixels[p + 1] = COLORS[mi + 1];
+                    pixels[p + 2] = COLORS[mi + 2];
+                    pixels[p + 3] = COLORS[mi + 3];
+                    ensureActiveAdd(id);
+                    addNeighborsToNext(id);
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // count particles
+        function countParticles() {
+          let c = 0;
+          for (let i = 0; i < grid.length; i++)
+            if (grid[i] === SAND || grid[i] === WATER) c++;
+          return c;
+        }
+
+        // Core update for a single id. Returns true if moved (so neighbors get scheduled appropriately)
+        function updateParticleAt(id) {
+          const y = (id / W) | 0;
+          const x = id % W;
+          const mat = grid[id];
+          if (mat === SAND) {
+            const by = y + 1,
+              bx = x;
+            const belowId = by * W + bx;
+            // fall
+            if (by < H) {
+              const below = grid[belowId];
+              if (below === EMPTY) {
+                // move down
+                grid[belowId] = SAND;
+                grid[id] = EMPTY;
+                // pixels swap
+                swapPixels(id, belowId);
+                ensureActiveAdd(belowId);
+                addNeighborsToNext(belowId);
+                return true;
+              } else if (below === WATER) {
+                // sand sinks through water (swap)
+                grid[belowId] = SAND;
+                grid[id] = WATER;
+                swapPixels(id, belowId);
+                ensureActiveAdd(belowId);
+                ensureActiveAdd(id);
+                addNeighborsToNext(belowId);
+                addNeighborsToNext(id);
+                return true;
+              }
+            }
+            // diagonals
+            // small random bias left/right to reduce symmetry
+            const tryLeftFirst = Math.random() < 0.5;
+            const dxs = tryLeftFirst ? [-1, 1] : [1, -1];
+            for (let k = 0; k < 2; k++) {
+              const ty = y + 1,
+                tx = x + dxs[k];
+              if (ty < 0 || ty >= H || tx < 0 || tx >= W) continue;
+              const tid = ty * W + tx;
+              const tval = grid[tid];
+              if (tval === EMPTY || tval === WATER) {
+                if (tval === EMPTY) {
+                  grid[tid] = SAND;
+                  grid[id] = EMPTY;
+                  swapPixels(id, tid);
+                  ensureActiveAdd(tid);
+                  addNeighborsToNext(tid);
+                  return true;
+                } else {
+                  // swap with water
+                  grid[tid] = SAND;
+                  grid[id] = WATER;
+                  swapPixels(id, tid);
+                  ensureActiveAdd(tid);
+                  ensureActiveAdd(id);
+                  addNeighborsToNext(tid);
+                  addNeighborsToNext(id);
+                  return true;
+                }
+              }
+            }
+            // small lateral jitter
+            if (Math.random() < 0.01) {
+              const side = Math.random() < 0.5 ? -1 : 1;
+              const sx = x + side;
+              if (sx >= 0 && sx < W && grid[y * W + sx] === EMPTY) {
+                const tid = y * W + sx;
+                grid[tid] = SAND;
+                grid[id] = EMPTY;
+                swapPixels(id, tid);
+                ensureActiveAdd(tid);
+                addNeighborsToNext(tid);
+                return true;
+              }
+            }
+            return false;
+          } else if (mat === WATER) {
+            // water falls first
+            const by = y + 1;
+            if (by < H) {
+              const bid = by * W + x;
+              if (grid[bid] === EMPTY) {
+                grid[bid] = WATER;
+                grid[id] = EMPTY;
+                swapPixels(id, bid);
+                ensureActiveAdd(bid);
+                addNeighborsToNext(bid);
+                return true;
+              }
+            }
+            // down-left / down-right
+            const order = Math.random() < 0.5 ? [-1, 1] : [1, -1];
+            for (let k = 0; k < 2; k++) {
+              const ty = y + 1,
+                tx = x + order[k];
+              if (ty < 0 || ty >= H || tx < 0 || tx >= W) continue;
+              const tid = ty * W + tx;
+              if (grid[tid] === EMPTY) {
+                grid[tid] = WATER;
+                grid[id] = EMPTY;
+                swapPixels(id, tid);
+                ensureActiveAdd(tid);
+                addNeighborsToNext(tid);
+                return true;
+              }
+            }
+            // lateral
+            for (let k = 0; k < 2; k++) {
+              const tx = x + order[k];
+              if (tx < 0 || tx >= W) continue;
+              const tid = y * W + tx;
+              if (grid[tid] === EMPTY) {
+                if (Math.random() < WATER_FLOW_CHANCE) {
+                  grid[tid] = WATER;
+                  grid[id] = EMPTY;
+                  swapPixels(id, tid);
+                  ensureActiveAdd(tid);
+                  addNeighborsToNext(tid);
+                  return true;
+                }
+              }
+            }
+            return false;
+          }
+          return false;
+        }
+
+        function swapPixels(idA, idB) {
+          // swap grid pixels RGBA
+          let pa = idA * 4,
+            pb = idB * 4;
+          for (let i = 0; i < 4; i++) {
+            const t = pixels[pa + i];
+            pixels[pa + i] = pixels[pb + i];
+            pixels[pb + i] = t;
+          }
+        }
+
+        // Main step: process activeCur queue
+        function simulateStep() {
+          // safety: if empty, repopulate with all non-empty (but normally user painting will seed)
+          if (activeCur.length === 0) {
+            for (let i = 0; i < grid.length; i++) {
+              if (grid[i] !== EMPTY && grid[i] !== WALL) {
+                if (!visited[i]) {
+                  visited[i] = 1;
+                  activeCur.push(i);
+                }
+              }
+            }
+          }
+          // clear visited flags will be reset during processing
+          for (let i = 0; i < activeCur.length; i++) {
+            const id = activeCur[i];
+            visited[id] = 0; // allow re-add later
+            if (grid[id] === EMPTY || grid[id] === WALL) continue;
+            updateParticleAt(id);
+            // if too many active cells, early stop to maintain FPS
+            if (activeNext.length > MAX_ACTIVE) break;
+          }
+          // swap queues
+          activeCur = activeNext;
+          activeNext = [];
+        }
+
+        // Rendering
+        const ctx = gfx.getContext("2d", { alpha: false });
+        function render() {
+          ctx.putImageData(imageData, 0, 0);
+        }
+
+        // Animation loop
+        function loop(now) {
+          if (!paused) {
+            // do multiple simulation steps per animation tick when needed,
+            // but avoid too many when there are many active cells.
+            // dynamic step count:
+            let stepCount =
+              activeCur.length > 20000 ? 1 : activeCur.length > 2000 ? 2 : 3;
+            stepCount = Math.min(stepCount, 6);
+            for (let s = 0; s < stepCount; s++) simulateStep();
+          }
+
+          render();
+
+          // FPS
+          frameCount++;
+          const elapsed = now - lastTime;
+          if (elapsed >= 500) {
+            fps = Math.round((frameCount / elapsed) * 1000);
+            frameCount = 0;
+            lastTime = now;
+            fpsEl.textContent = fps;
+            totalParticles = countParticles();
+            particlesEl.textContent = totalParticles;
+          }
+
+          requestAnimationFrame(loop);
+        }
+
+        // Mouse input mapping: convert client coords to cell coords
+        let isDrawing = false;
+        let isErasing = false;
+        function clientToCell(e) {
+          const rect = gfx.getBoundingClientRect();
+          const cx = e.clientX - rect.left;
+          const cy = e.clientY - rect.top;
+          // compute cell coordinates from scaled canvas css size
+          const scaleX = W / parseFloat(gfx.style.width); // weird but robust
+          const scaleY = H / parseFloat(gfx.style.height);
+          const cellX = Math.floor(cx * scaleX);
+          const cellY = Math.floor(cy * scaleY);
+          return {
+            cellX: clamp(cellX, 1, W - 2),
+            cellY: clamp(cellY, 1, H - 2),
+          };
+        }
+        function clamp(v, a, b) {
+          return Math.max(a, Math.min(b, v));
+        }
+
+        // Painting handlers
+        gfx.addEventListener("pointerdown", (e) => {
+          gfx.setPointerCapture(e.pointerId);
+          if (e.button === 2 || e.buttons === 2) {
+            // right button
+            isErasing = true;
+          } else {
+            isDrawing = true;
+          }
+          handlePointer(e);
+        });
+
+        gfx.addEventListener("contextmenu", (e) => e.preventDefault()); // disable context menu
+
+        gfx.addEventListener("pointermove", (e) => {
+          if (isDrawing || isErasing) handlePointer(e);
+        });
+
+        gfx.addEventListener("pointerup", (e) => {
+          gfx.releasePointerCapture(e.pointerId);
+          isDrawing = false;
+          isErasing = false;
+        });
+
+        gfx.addEventListener(
+          "wheel",
+          (e) => {
+            // wheel to change brush
+            e.preventDefault();
+            const delta = Math.sign(e.deltaY);
+            brush = Math.max(1, Math.min(64, brush - delta));
+            brushRange.value = brush;
+            brushVal.textContent = brush;
+          },
+          { passive: false }
+        );
+
+        function handlePointer(e) {
+          const { cellX, cellY } = clientToCell(e);
+          if (isErasing || e.buttons === 2) {
+            paintCircle(cellY, cellX, brush, EMPTY);
+          } else {
+            paintCircle(cellY, cellX, brush, currentMat);
+          }
+        }
+
+        // UI controls
+        document.querySelectorAll(".material-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            document
+              .querySelectorAll(".material-btn")
+              .forEach((b) => b.classList.remove("active"));
+            btn.classList.add("active");
+            currentMat = parseInt(btn.dataset.mat, 10);
+          });
+        });
+
+        brushRange.addEventListener("input", () => {
+          brush = parseInt(brushRange.value, 10);
+          brushVal.textContent = brush;
+        });
+
+        pauseBtn.addEventListener("click", () => {
+          paused = !paused;
+          pauseBtn.textContent = paused ? "Resume" : "Pause";
+        });
+
+        clearBtn.addEventListener("click", () => {
+          // clear all non-wall cells
+          for (let i = 0; i < grid.length; i++) {
+            if (grid[i] !== WALL) {
+              grid[i] = EMPTY;
+              const p = i * 4;
+              pixels[p] = COLORS[0];
+              pixels[p + 1] = COLORS[1];
+              pixels[p + 2] = COLORS[2];
+              pixels[p + 3] = COLORS[3];
+            }
+          }
+          activeCur = [];
+          activeNext = [];
+          visited.fill(0);
+          particlesEl.textContent = 0;
+        });
+
+        scaleSel.addEventListener("change", () => {
+          // reinit grid at new scale (keeps nothing)
+          initGrid();
+        });
+
+        // keyboard shortcuts
+        window.addEventListener("keydown", (e) => {
+          if (e.key === "1") selectMaterialBtn(2);
+          else if (e.key === "2") selectMaterialBtn(3);
+          else if (e.key === "3") selectMaterialBtn(1);
+          else if (e.key === "0") selectMaterialBtn(0);
+          else if (e.code === "Space") {
+            e.preventDefault();
+            paused = !paused;
+            pauseBtn.textContent = paused ? "Resume" : "Pause";
+          } else if (e.key.toLowerCase() === "c") {
+            clearBtn.click();
+          }
+        });
+
+        function selectMaterialBtn(mat) {
+          currentMat = mat;
+          document
+            .querySelectorAll(".material-btn")
+            .forEach((b) => b.classList.remove("active"));
+          const btn = document.querySelector(
+            `.material-btn[data-mat="${mat}"]`
+          );
+          if (btn) btn.classList.add("active");
+        }
+
+        // init and start
+        initGrid();
+        requestAnimationFrame((now) => {
+          lastTime = now;
+          frameCount = 0;
+          requestAnimationFrame(loop);
+        });
+
+        // utility to randomly seed some sand/water for demo
+        window.seedDemo = () => {
+          const cx = Math.floor(W / 2);
+          for (let y = 4; y < 12; y++) {
+            for (let x = cx - 30; x < cx + 30; x++) {
+              if (Math.random() < 0.5) {
+                grid[y * W + x] = SAND;
+                const p = (y * W + x) * 4;
+                pixels[p] = COLORS[8];
+                pixels[p + 1] = COLORS[9];
+                pixels[p + 2] = COLORS[10];
+                pixels[p + 3] = COLORS[11];
+              }
+            }
+          }
+          for (let y = 12; y < 18; y++) {
+            for (let x = cx - 20; x < cx + 20; x++) {
+              if (Math.random() < 0.5) {
+                grid[y * W + x] = WATER;
+                const p = (y * W + x) * 4;
+                pixels[p] = COLORS[12];
+                pixels[p + 1] = COLORS[13];
+                pixels[p + 2] = COLORS[14];
+                pixels[p + 3] = COLORS[15];
+              }
+            }
+          }
+          // make sure active queue is seeded
+          for (let i = 0; i < grid.length; i++) {
+            if (grid[i] !== EMPTY && grid[i] !== WALL) ensureActiveAdd(i);
+          }
+        };
+
+        // expose for debugging in console
+        window.sim = {
+          initGrid,
+          seedDemo,
+          setBrush: (b) => {
+            brush = b;
+            brushRange.value = b;
+            brushVal.textContent = b;
+          },
+        };
+      })();
+    </script>
+  </body>
+</html>
