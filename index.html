@@ -3,197 +3,550 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Samay SR's Silly Projects</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
+    <title>Samay SR - Stuff I Made</title>
+    <meta name="description" content="Samay SR's Silly Projects" />
+    <meta name="author" content="Samay SR" />
+    <link rel="icon" type="image/x-icon" href="image.png" />
+
     <style>
-      .project-card {
-        transition: all 0.3s ease;
-        transform-style: preserve-3d;
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
       }
-      .project-card:hover {
-        transform: translateY(-5px) rotateY(5deg);
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
-          0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+      body {
+        font-family: "Courier New", monospace;
+        background-color: #0a0a0a;
+        color: #e0e0e0;
+        line-height: 1.6;
+        overflow-x: hidden;
+        position: relative;
       }
-      .project-image {
-        height: 200px;
-        object-fit: cover;
-        object-position: top;
+
+      /* Fixed animated background */
+      body::before {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: radial-gradient(
+            circle at 20% 80%,
+            #1a1a2e 0%,
+            transparent 50%
+          ),
+          radial-gradient(circle at 80% 20%, #16213e 0%, transparent 50%),
+          radial-gradient(circle at 40% 40%, #0f3460 0%, transparent 50%),
+          #0a0a0a;
+        z-index: -1;
+        background-size: 200% 200%;
+        animation: bgMove 30s ease-in-out infinite;
       }
-      .silly-text {
-        font-family: "Comic Sans MS", cursive, sans-serif;
-      }
-      .bounce {
-        animation: bounce 2s infinite;
-      }
-      @keyframes bounce {
-        0%,
-        100% {
-          transform: translateY(0);
+
+      @keyframes bgMove {
+        0% {
+          background-position: 0% 0%;
         }
         50% {
-          transform: translateY(-10px);
+          background-position: 100% 100%;
+        }
+        100% {
+          background-position: 0% 0%;
+        }
+      }
+
+      a {
+        color: #bb86fc;
+        text-decoration: none;
+        position: relative;
+        transition: all 0.3s ease;
+      }
+
+      a:hover {
+        text-decoration: none;
+      }
+
+      a::after {
+        content: "";
+        position: absolute;
+        bottom: -2px;
+        left: 0;
+        width: 0;
+        height: 2px;
+        background: #03dac6;
+        transition: width 0.3s ease;
+      }
+
+      a:hover::after {
+        width: 100%;
+      }
+
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+
+      /* Header */
+      header {
+        padding: 60px 0;
+        text-align: center;
+        position: relative;
+      }
+
+      h1 {
+        font-size: 3rem;
+        margin-bottom: 10px;
+        color: #bb86fc;
+        text-shadow: 0 0 10px rgba(187, 134, 252, 0.5);
+        animation: glow 2s ease-in-out infinite alternate;
+      }
+
+      @keyframes glow {
+        from {
+          text-shadow: 0 0 10px rgba(187, 134, 252, 0.5);
+        }
+        to {
+          text-shadow: 0 0 20px rgba(187, 134, 252, 0.8),
+            0 0 30px rgba(187, 134, 252, 0.6);
+        }
+      }
+
+      .subtitle {
+        font-size: 1.2rem;
+        color: #9e9e9e;
+        display: inline-block;
+      }
+
+      /* Glitch effect */
+      .glitch {
+        position: relative;
+        color: #03dac6;
+        font-size: 1.2rem;
+        animation: glitch 2s infinite;
+      }
+
+      .glitch::before,
+      .glitch::after {
+        content: attr(data-text);
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      .glitch::before {
+        animation: glitch-1 0.5s infinite;
+        color: #ff00ff;
+        z-index: -1;
+      }
+
+      .glitch::after {
+        animation: glitch-2 0.5s infinite;
+        color: #00ffff;
+        z-index: -2;
+      }
+
+      @keyframes glitch {
+        0%,
+        100% {
+          transform: translate(0);
+        }
+        20% {
+          transform: translate(-2px, 2px);
+        }
+        40% {
+          transform: translate(-2px, -2px);
+        }
+        60% {
+          transform: translate(2px, 2px);
+        }
+        80% {
+          transform: translate(2px, -2px);
+        }
+      }
+
+      @keyframes glitch-1 {
+        0%,
+        100% {
+          clip-path: inset(0 0 0 0);
+          transform: translate(0);
+        }
+        20% {
+          clip-path: inset(20% 0 30% 0);
+          transform: translate(-5px);
+        }
+        40% {
+          clip-path: inset(50% 0 20% 0);
+          transform: translate(5px);
+        }
+        60% {
+          clip-path: inset(10% 0 60% 0);
+          transform: translate(3px);
+        }
+        80% {
+          clip-path: inset(80% 0 5% 0);
+          transform: translate(-3px);
+        }
+      }
+
+      @keyframes glitch-2 {
+        0%,
+        100% {
+          clip-path: inset(0 0 0 0);
+          transform: translate(0);
+        }
+        20% {
+          clip-path: inset(60% 0 10% 0);
+          transform: translate(5px);
+        }
+        40% {
+          clip-path: inset(20% 0 50% 0);
+          transform: translate(-5px);
+        }
+        60% {
+          clip-path: inset(30% 0 40% 0);
+          transform: translate(3px);
+        }
+        80% {
+          clip-path: inset(5% 0 80% 0);
+          transform: translate(-3px);
+        }
+      }
+
+      /* Intro Section */
+      #intro {
+        padding: 40px 0;
+        border-bottom: 1px solid #333;
+        position: relative;
+      }
+
+      .intro-content {
+        margin-bottom: 20px;
+      }
+
+      .intro-content p {
+        margin-bottom: 15px;
+        opacity: 0;
+        animation: fadeInUp 0.8s forwards;
+      }
+
+      .intro-content p:nth-child(1) {
+        animation-delay: 0.2s;
+      }
+      .intro-content p:nth-child(2) {
+        animation-delay: 0.4s;
+      }
+      .intro-content p:nth-child(3) {
+        animation-delay: 0.6s;
+      }
+
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* Projects Section */
+      #projects {
+        padding: 40px 0;
+        border-bottom: 1px solid #333;
+      }
+
+      .project {
+        margin-bottom: 30px;
+        padding: 20px;
+        background-color: #1a1a1a;
+        border-radius: 8px;
+        border: 1px solid #333;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .project::before {
+        content: "";
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: linear-gradient(
+          45deg,
+          transparent,
+          rgba(187, 134, 252, 0.1),
+          transparent
+        );
+        transform: rotate(45deg);
+        transition: all 0.5s;
+        opacity: 0;
+      }
+
+      .project:hover::before {
+        animation: shine 0.5s ease-in-out;
+      }
+
+      @keyframes shine {
+        0% {
+          transform: translateX(-100%) translateY(-100%) rotate(45deg);
+          opacity: 0;
+        }
+        50% {
+          opacity: 1;
+        }
+        100% {
+          transform: translateX(100%) translateY(100%) rotate(45deg);
+          opacity: 0;
+        }
+      }
+
+      .project:hover {
+        transform: translateX(10px) scale(1.02);
+        border-color: #bb86fc;
+        box-shadow: 0 5px 15px rgba(187, 134, 252, 0.3);
+      }
+
+      .project h3 {
+        color: #03dac6;
+        margin-bottom: 10px;
+        transition: all 0.3s ease;
+      }
+
+      .project:hover h3 {
+        color: #bb86fc;
+        text-shadow: 0 0 10px rgba(187, 134, 252, 0.5);
+      }
+
+      .project p {
+        margin-bottom: 10px;
+        color: #b0b0b0;
+      }
+
+      .project-links {
+        display: flex;
+        gap: 15px;
+        margin-top: 15px;
+      }
+
+      /* Floating particles */
+      .particle {
+        position: fixed;
+        pointer-events: none;
+        opacity: 0.5;
+        animation: float 10s infinite;
+      }
+
+      @keyframes float {
+        0%,
+        100% {
+          transform: translateY(0) translateX(0);
+          opacity: 0;
+        }
+        10% {
+          opacity: 0.5;
+        }
+        90% {
+          opacity: 0.5;
+        }
+        100% {
+          transform: translateY(-100vh) translateX(100px);
+          opacity: 0;
+        }
+      }
+
+      /* Footer */
+      footer {
+        padding: 40px 0;
+        text-align: center;
+        color: #9e9e9e;
+        position: relative;
+      }
+
+      footer p {
+        margin-bottom: 10px;
+      }
+
+      /* Wobble effect for links */
+      .wobble {
+        display: inline-block;
+        transition: all 0.3s ease;
+      }
+
+      .wobble:hover {
+        animation: wobble 0.5s ease;
+      }
+
+      @keyframes wobble {
+        0%,
+        100% {
+          transform: rotate(0deg);
+        }
+        25% {
+          transform: rotate(5deg);
+        }
+        75% {
+          transform: rotate(-5deg);
+        }
+      }
+
+      /* Blinking cursor */
+      .cursor {
+        display: inline-block;
+        background-color: #bb86fc;
+        margin-left: 3px;
+        width: 3px;
+        animation: blink 1s infinite;
+      }
+
+      @keyframes blink {
+        0% {
+          background-color: #bb86fc;
+        }
+        50% {
+          background-color: transparent;
+        }
+        100% {
+          background-color: #bb86fc;
         }
       }
     </style>
   </head>
-  <body class="bg-gradient-to-br from-purple-100 to-blue-100 min-h-screen">
-    <header
-      class="bg-white bg-opacity-80 backdrop-blur-md sticky top-0 z-50 shadow-sm"
-    >
-      <div class="container mx-auto px-4 py-6">
-        <div class="flex justify-between items-center">
-          <div class="flex items-center space-x-2">
-            <i class="fas fa-laugh-squint text-3xl text-purple-500 bounce"></i>
-            <h1 class="text-2xl font-bold silly-text text-purple-700">
-              Samay SR's <span class="text-pink-500">Silly</span> Projects
-            </h1>
-          </div>
-          <button id="mobile-menu-button" class="md:hidden text-purple-700">
-            <i class="fas fa-bars text-2xl"></i>
-          </button>
-        </div>
-      </div>
-    </header>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Samay SR</h1>
+        <p class="subtitle glitch" data-text="Software Developer">
+          Software Developer<span class="cursor"></span>
+        </p>
+      </header>
 
-    <main class="container mx-auto px-4 py-12">
-      <section class="text-center mb-20">
-        <div class="max-w-3xl mx-auto">
-          <h2
-            class="text-4xl md:text-5xl font-bold mb-6 silly-text text-purple-800"
-          >
-            Welcome to My <span class="text-pink-500">Silly</span> World!
-          </h2>
-          <p class="text-lg text-gray-700 mb-8">
-            I'm Samay SR, and these are my ridiculous, absurd, and sometimes
-            accidentally brilliant creations. Enjoy the madness!
+      <section id="intro">
+        <div class="intro-content">
+          <p>Hey, I'm Samay. I write code sometimes.</p>
+          <p>
+            I like building things that work (most of the time). I use
+            JavaScript, Python, and whatever else gets the job done.
           </p>
+          <p>This is just a side project, so don't expect anything fancy.</p>
         </div>
       </section>
 
-      <section id="projects" class="mb-20">
-        <h2
-          class="text-3xl font-bold mb-10 text-center silly-text text-purple-700"
-        >
-          My <span class="text-pink-500">Silly</span> Creations
+      <section id="projects">
+        <h2 style="margin-bottom: 30px; color: #03dac6; text-align: center">
+          Stuff I Made
         </h2>
 
-        <div
-          id="project-container"
-          class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
-        >
-          <!-- Projects will be loaded here by JavaScript -->
+        <div class="project">
+          <h3>Mouse Kaleidoscope</h3>
+          <p>
+            A mesmerizing app that turns your mouse movements into a psychedelic
+            kaleidoscope of colors and shapes. Warning: may cause dizziness.
+          </p>
+          <div class="project-links">
+            <a href="#" class="glow">Code</a>
+            <a href="/projects/kaleidoscope.html" class="glow">Live</a>
+          </div>
         </div>
 
-        <div class="flex justify-center mt-10">
-          <button
-            id="load-more"
-            class="bg-white hover:bg-gray-100 text-purple-700 border border-purple-300 px-6 py-2 rounded-full font-medium transition"
-          >
-            Load More Nonsense <i class="fas fa-plus-circle ml-2"></i>
-          </button>
+        <div class="project">
+          <h3>Car Game</h3>
+          <p>A simple car game where you drive and collect checkpoints.</p>
+          <div class="project-links">
+            <a href="#" class="glow">Code</a>
+            <a href="/projects/cargame.html" class="glow">Live</a>
+          </div>
+        </div>
+
+        <div class="project">
+          <h3>Sand Simulator</h3>
+          <p>
+            Watch grains of sand fall, pile up, and interact with simple
+            physics. You can draw, erase, and experiment with different
+            materials. It's oddly satisfying and a bit addictive.
+          </p>
+          <div class="project-links">
+            <a href="#" class="glow">Code</a>
+            <a href="/projects/sandsimulator.html" class="glow">Live</a>
+          </div>
         </div>
       </section>
-    </main>
 
-    <footer class="bg-white bg-opacity-80 py-8">
-      <div class="container mx-auto px-4 text-center text-gray-600">
-        <p class="mb-2">
-          Made with <i class="fas fa-heart text-pink-500"></i> and
-          <i class="fas fa-laugh-squint text-purple-500"></i> by Samay SR
+      <footer>
+        <p>© 2025 Samay SR | Made with minimal effort</p>
+        <p>
+          <a href="https://github.com/Samay912" class="wobble" target="_blank"
+            >GitHub</a
+          >
+          |
+          <a
+            href="https://www.linkedin.com/in/samay-sr/"
+            class="wobble"
+            target="_blank"
+            >LinkedIn</a
+          >
+          |
+          <a href="mailto:samaysurya912@gmail.com" class="wobble">Email</a>
         </p>
-        <p class="text-sm">All projects are 100% silly and 50% functional</p>
-      </div>
-    </footer>
+      </footer>
+    </div>
 
     <script>
-      // Mobile menu toggle
-      document
-        .getElementById("mobile-menu-button")
-        .addEventListener("click", function () {
-          const menu = document.getElementById("mobile-menu");
-          menu.classList.toggle("hidden");
-        });
+      // Create floating particles
+      function createParticle() {
+        const particle = document.createElement("div");
+        particle.className = "particle";
+        particle.style.left = Math.random() * window.innerWidth + "px";
+        particle.style.top = window.innerHeight + "px";
+        particle.style.width = Math.random() * 5 + 2 + "px";
+        particle.style.height = particle.style.width;
+        particle.style.backgroundColor = "#bb86fc";
+        particle.style.borderRadius = "50%";
+        particle.style.animationDuration = Math.random() * 10 + 10 + "s";
+        particle.style.animationDelay = Math.random() * 5 + "s";
 
-      // Sample projects data
-      const projects = [
-        {
-          title: "Mouse Kaleidoscope",
-          description:
-            "A mesmerizing app that turns your mouse movements into a psychedelic kaleidoscope of colors and shapes. Warning: may cause dizziness.",
-          url: "/projects/kaleidoscope.html",
-        },
-        {
-          title: "Car Game",
-          description:
-            "A simple car game where you drive and collect checkpoints.",
-          url: "/projects/cargame.html",
-        },
-      ];
+        document.body.appendChild(particle);
 
-      // Display projects
-      const projectContainer = document.getElementById("project-container");
-      let displayedProjects = 3;
-
-      function displayProjects(count) {
-        projectContainer.innerHTML = "";
-        for (let i = 0; i < Math.min(count, projects.length); i++) {
-          const project = projects[i];
-          const projectElement = document.createElement("div");
-          projectElement.className =
-            "project-card bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition";
-          projectElement.innerHTML = `
-                    <div class="p-6">
-                        <h3 class="text-xl font-bold mb-2 text-purple-700">${project.title}</h3>
-                        <p class="text-gray-600 mb-4">${project.description}</p>
-                        <a href=${project.url}>
-                        <button class="mt-4 text-pink-500 hover:text-pink-600 font-medium flex items-center">
-                            View Project <i class="fas fa-arrow-right ml-2"></i>
-                        </button>
-                        </a>
-                    </div>
-                `;
-          projectContainer.appendChild(projectElement);
-        }
+        setTimeout(() => {
+          particle.remove();
+        }, 20000);
       }
 
-      // Initial display
-      displayProjects(displayedProjects);
+      // Create particles periodically
+      setInterval(createParticle, 2000);
 
-      // Load more projects
-      document
-        .getElementById("load-more")
-        .addEventListener("click", function () {
-          displayedProjects = Math.min(displayedProjects + 3, projects.length);
-          displayProjects(displayedProjects);
+      // Add random color change to project titles on hover
+      const projectTitles = document.querySelectorAll(".project h3");
+      const colors = ["#bb86fc", "#03dac6", "#ff6b6b", "#4ecdc4", "#ffe66d"];
 
-          if (displayedProjects >= projects.length) {
-            this.disabled = true;
-            this.innerHTML = 'No More Nonsense <i class="fas fa-meh ml-2"></i>';
-            this.classList.remove("hover:bg-gray-100");
-            this.classList.add("bg-gray-200", "cursor-not-allowed");
-          }
+      projectTitles.forEach((title) => {
+        title.addEventListener("mouseenter", function () {
+          const randomColor = colors[Math.floor(Math.random() * colors.length)];
+          this.style.color = randomColor;
         });
 
-      // Smooth scrolling for anchor links
-      document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
-        anchor.addEventListener("click", function (e) {
-          e.preventDefault();
-          document.querySelector(this.getAttribute("href")).scrollIntoView({
-            behavior: "smooth",
-          });
-
-          // Close mobile menu if open
-          const mobileMenu = document.getElementById("mobile-menu");
-          if (!mobileMenu.classList.contains("hidden")) {
-            mobileMenu.classList.add("hidden");
-          }
+        title.addEventListener("mouseleave", function () {
+          this.style.color = "#03dac6";
         });
       });
+
+      // Add random glitch effect to header
+      const header = document.querySelector("header");
+      setInterval(() => {
+        if (Math.random() > 0.95) {
+          header.style.animation = "glitch 0.3s";
+          setTimeout(() => {
+            header.style.animation = "";
+          }, 300);
+        }
+      }, 3000);
     </script>
   </body>
 </html>
