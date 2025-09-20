@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Triple Pendulum Animation - Eternal Motion</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        background: #0a0a0a;
+        overflow: hidden;
+        font-family: "Arial", sans-serif;
+      }
+
+      canvas {
+        display: block;
+        background: radial-gradient(circle at center, #0a0a0a 0%, #000000 100%);
+      }
+
+      .info {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        color: #666;
+        font-size: 14px;
+        opacity: 0.7;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="info">Triple Pendulum - Eternal Motion</div>
+    <canvas id="canvas"></canvas>
+
+    <script>
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+
+      // Set canvas size
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      // Physics constants
+      const g = 9.81; // gravity
+      const dt = 0.005; // smaller time step for better accuracy
+
+      // Pendulum parameters
+      const pendulum = {
+        // Lengths
+        l1: 150,
+        l2: 120,
+        l3: 100,
+
+        // Masses
+        m1: 10,
+        m2: 8,
+        m3: 6,
+
+        // Initial angles (radians) - set to interesting starting position
+        theta1: Math.PI / 2,
+        theta2: Math.PI / 2 + 0.2,
+        theta3: Math.PI / 2 - 0.1,
+
+        // Initial angular velocities - give it some initial energy
+        omega1: 0.5,
+        omega2: -0.3,
+        omega3: 0.2,
+
+        // No damping - motion continues forever
+        damping: 1.0,
+      };
+
+      // Trail arrays for each pendulum
+      const trail1 = [];
+      const trail2 = [];
+      const trail3 = [];
+      const maxTrailLength = 800; // Increased trail length
+
+      // Origin point
+      const origin = {
+        x: canvas.width / 2,
+        y: canvas.height / 3,
+      };
+
+      // Colors for each pendulum
+      const colors = {
+        rod1: "#444",
+        rod2: "#555",
+        rod3: "#666",
+        mass1: "#ff6b6b",
+        mass2: "#4ecdc4",
+        mass3: "#45b7d1",
+        trail1: "rgba(255, 107, 107, 0.4)",
+        trail2: "rgba(78, 205, 196, 0.4)",
+        trail3: "rgba(69, 183, 209, 0.4)",
+      };
+
+      // Calculate positions of each pendulum bob
+      function calculatePositions() {
+        const x1 = origin.x + pendulum.l1 * Math.sin(pendulum.theta1);
+        const y1 = origin.y + pendulum.l1 * Math.cos(pendulum.theta1);
+
+        const x2 = x1 + pendulum.l2 * Math.sin(pendulum.theta2);
+        const y2 = y1 + pendulum.l2 * Math.cos(pendulum.theta2);
+
+        const x3 = x2 + pendulum.l3 * Math.sin(pendulum.theta3);
+        const y3 = y2 + pendulum.l3 * Math.cos(pendulum.theta3);
+
+        return { x1, y1, x2, y2, x3, y3 };
+      }
+
+      // Calculate total energy of the system
+      function calculateEnergy() {
+        const {
+          l1,
+          l2,
+          l3,
+          m1,
+          m2,
+          m3,
+          theta1,
+          theta2,
+          theta3,
+          omega1,
+          omega2,
+          omega3,
+        } = pendulum;
+
+        // Kinetic energy
+        const v1_squared = l1 * l1 * omega1 * omega1;
+        const v2_squared =
+          l1 * l1 * omega1 * omega1 +
+          l2 * l2 * omega2 * omega2 +
+          2 * l1 * l2 * omega1 * omega2 * Math.cos(theta1 - theta2);
+        const v3_squared =
+          l1 * l1 * omega1 * omega1 +
+          l2 * l2 * omega2 * omega2 +
+          l3 * l3 * omega3 * omega3 +
+          2 * l1 * l2 * omega1 * omega2 * Math.cos(theta1 - theta2) +
+          2 * l1 * l3 * omega1 * omega3 * Math.cos(theta1 - theta3) +
+          2 * l2 * l3 * omega2 * omega3 * Math.cos(theta2 - theta3);
+
+        const T = 0.5 * (m1 * v1_squared + m2 * v2_squared + m3 * v3_squared);
+
+        // Potential energy (relative to origin)
+        const y1 = -l1 * Math.cos(theta1);
+        const y2 = -l1 * Math.cos(theta1) - l2 * Math.cos(theta2);
+        const y3 =
+          -l1 * Math.cos(theta1) -
+          l2 * Math.cos(theta2) -
+          l3 * Math.cos(theta3);
+
+        const V = g * (m1 * y1 + m2 * y2 + m3 * y3);
+
+        return T + V;
+      }
+
+      // Store initial energy
+      let initialEnergy = calculateEnergy();
+      let energyCorrectionCounter = 0;
+
+      // Triple pendulum equations of motion
+      function updatePhysics() {
+        const { l1, l2, l3, m1, m2, m3 } = pendulum;
+        const { theta1, theta2, theta3, omega1, omega2, omega3 } = pendulum;
+
+        // Calculate trigonometric values
+        const sin1 = Math.sin(theta1);
+        const sin2 = Math.sin(theta2);
+        const sin3 = Math.sin(theta3);
+        const cos1 = Math.cos(theta1);
+        const cos2 = Math.cos(theta2);
+        const cos3 = Math.cos(theta3);
+
+        const sin12 = Math.sin(theta1 - theta2);
+        const sin13 = Math.sin(theta1 - theta3);
+        const sin23 = Math.sin(theta2 - theta3);
+        const cos12 = Math.cos(theta1 - theta2);
+        const cos13 = Math.cos(theta1 - theta3);
+        const cos23 = Math.cos(theta2 - theta3);
+
+        // Mass matrix elements
+        const M11 = (m1 + m2 + m3) * l1 * l1;
+        const M12 = (m2 + m3) * l1 * l2 * cos12;
+        const M13 = m3 * l1 * l3 * cos13;
+        const M22 = (m2 + m3) * l2 * l2;
+        const M23 = m3 * l2 * l3 * cos23;
+        const M33 = m3 * l3 * l3;
+
+        // Force terms
+        const F1 =
+          -(m2 + m3) * l1 * l2 * omega2 * omega2 * sin12 -
+          m3 * l1 * l3 * omega3 * omega3 * sin13 -
+          (m1 + m2 + m3) * g * l1 * sin1;
+
+        const F2 =
+          (m2 + m3) * l1 * l2 * omega1 * omega1 * sin12 -
+          m3 * l2 * l3 * omega3 * omega3 * sin23 -
+          (m2 + m3) * g * l2 * sin2;
+
+        const F3 =
+          m3 * l1 * l3 * omega1 * omega1 * sin13 +
+          m3 * l2 * l3 * omega2 * omega2 * sin23 -
+          m3 * g * l3 * sin3;
+
+        // Solve for accelerations using matrix inversion
+        const det =
+          M11 * (M22 * M33 - M23 * M23) -
+          M12 * (M12 * M33 - M13 * M23) +
+          M13 * (M12 * M23 - M13 * M22);
+
+        // Avoid division by zero
+        if (Math.abs(det) < 1e-10) return;
+
+        const alpha1 =
+          ((M22 * M33 - M23 * M23) * F1 +
+            (M13 * M23 - M12 * M33) * F2 +
+            (M12 * M23 - M13 * M22) * F3) /
+          det;
+
+        const alpha2 =
+          ((M13 * M23 - M12 * M33) * F1 +
+            (M11 * M33 - M13 * M13) * F2 +
+            (M12 * M13 - M11 * M23) * F3) /
+          det;
+
+        const alpha3 =
+          ((M12 * M23 - M13 * M22) * F1 +
+            (M12 * M13 - M11 * M23) * F2 +
+            (M11 * M22 - M12 * M12) * F3) /
+          det;
+
+        // Update velocities and positions
+        pendulum.omega1 += alpha1 * dt;
+        pendulum.omega2 += alpha2 * dt;
+        pendulum.omega3 += alpha3 * dt;
+
+        // No damping - motion continues forever
+        // pendulum.omega1 *= pendulum.damping;
+        // pendulum.omega2 *= pendulum.damping;
+        // pendulum.omega3 *= pendulum.damping;
+
+        // Update angles
+        pendulum.theta1 += pendulum.omega1 * dt;
+        pendulum.theta2 += pendulum.omega2 * dt;
+        pendulum.theta3 += pendulum.omega3 * dt;
+
+        // Energy correction every 1000 steps to maintain motion
+        energyCorrectionCounter++;
+        if (energyCorrectionCounter > 1000) {
+          const currentEnergy = calculateEnergy();
+          const energyRatio = Math.sqrt(initialEnergy / currentEnergy);
+
+          // Scale velocities to maintain energy
+          pendulum.omega1 *= energyRatio;
+          pendulum.omega2 *= energyRatio;
+          pendulum.omega3 *= energyRatio;
+
+          energyCorrectionCounter = 0;
+        }
+      }
+
+      // Add position to trail
+      function addToTrail(trail, x, y) {
+        trail.push({ x, y });
+        if (trail.length > maxTrailLength) {
+          trail.shift();
+        }
+      }
+
+      // Draw trail with gradient effect
+      function drawTrail(trail, color) {
+        if (trail.length < 2) return;
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+
+        for (let i = 1; i < trail.length; i++) {
+          const alpha = (i / trail.length) * 0.6;
+          ctx.globalAlpha = alpha;
+          ctx.beginPath();
+          ctx.moveTo(trail[i - 1].x, trail[i - 1].y);
+          ctx.lineTo(trail[i].x, trail[i].y);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      // Draw pendulum
+      function drawPendulum() {
+        const positions = calculatePositions();
+        const { x1, y1, x2, y2, x3, y3 } = positions;
+
+        // Add to trails
+        addToTrail(trail1, x1, y1);
+        addToTrail(trail2, x2, y2);
+        addToTrail(trail3, x3, y3);
+
+        // Draw trails
+        drawTrail(trail1, colors.trail1);
+        drawTrail(trail2, colors.trail2);
+        drawTrail(trail3, colors.trail3);
+
+        // Draw rods with glow effect
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = colors.rod1;
+        ctx.strokeStyle = colors.rod1;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(origin.x, origin.y);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+
+        ctx.shadowColor = colors.rod2;
+        ctx.strokeStyle = colors.rod2;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+
+        ctx.shadowColor = colors.rod3;
+        ctx.strokeStyle = colors.rod3;
+        ctx.beginPath();
+        ctx.moveTo(x2, y2);
+        ctx.lineTo(x3, y3);
+        ctx.stroke();
+
+        // Draw masses with glow
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = colors.mass1;
+        ctx.fillStyle = colors.mass1;
+        ctx.beginPath();
+        ctx.arc(x1, y1, 12, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.shadowColor = colors.mass2;
+        ctx.fillStyle = colors.mass2;
+        ctx.beginPath();
+        ctx.arc(x2, y2, 10, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.shadowColor = colors.mass3;
+        ctx.fillStyle = colors.mass3;
+        ctx.beginPath();
+        ctx.arc(x3, y3, 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Reset shadow
+        ctx.shadowBlur = 0;
+
+        // Draw origin point
+        ctx.fillStyle = "#fff";
+        ctx.beginPath();
+        ctx.arc(origin.x, origin.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Animation loop
+      function animate() {
+        // Clear canvas with fade effect
+        ctx.fillStyle = "rgba(10, 10, 10, 0.05)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Update physics multiple times per frame for accuracy
+        for (let i = 0; i < 10; i++) {
+          updatePhysics();
+        }
+
+        // Draw pendulum
+        drawPendulum();
+
+        requestAnimationFrame(animate);
+      }
+
+      // Handle window resize
+      window.addEventListener("resize", () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        origin.x = canvas.width / 2;
+        origin.y = canvas.height / 3;
+      });
+
+      // Start animation
+      animate();
+    </script>
+  </body>
+</html>
