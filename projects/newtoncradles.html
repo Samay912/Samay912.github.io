@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Interactive Newton's Cradle</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: #1a1a1a;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        color: #ccc;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      #canvas-container {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: radial-gradient(circle at center, #2b2b2b 0%, #000000 100%);
+      }
+
+      canvas {
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        width: 100%;
+        height: 100%;
+      }
+
+      .instructions {
+        position: absolute;
+        bottom: 30px;
+        text-align: center;
+        width: 100%;
+        pointer-events: none;
+        opacity: 0.7;
+        font-size: 14px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+      }
+
+      .controls {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: rgba(0, 0, 0, 0.6);
+        padding: 15px;
+        border-radius: 8px;
+        color: #fff;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        backdrop-filter: blur(5px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .control-group {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+
+      label {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #aaa;
+      }
+
+      input[type="range"] {
+        width: 200px;
+        cursor: pointer;
+        accent-color: #888;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="canvas-container">
+      <canvas id="simCanvas"></canvas>
+      <div class="instructions">Drag a ball and release</div>
+
+      <div class="controls">
+        <div class="control-group">
+          <label>Damping: <span id="dampingValue">0.995</span></label>
+          <input
+            type="range"
+            id="dampingControl"
+            min="0.950"
+            max="1.000"
+            step="0.001"
+            value="0.995"
+          />
+          <div
+            style="
+              font-size: 10px;
+              color: #666;
+              display: flex;
+              justify-content: space-between;
+            "
+          >
+            <span>Heavy</span>
+            <span>None</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const canvas = document.getElementById("simCanvas");
+      const ctx = canvas.getContext("2d");
+
+      // Configuration
+      const config = {
+        ballCount: 5,
+        ballRadius: 30,
+        ropeLength: 250,
+        gravity: 0.5,
+        damping: 0.995, // Air resistance
+        restitution: 1.0, // Elasticity of collision (1 = perfect transfer)
+      };
+
+      let width, height;
+      let balls = [];
+      let draggedBall = null;
+
+      // UI Controls
+      const dampingInput = document.getElementById("dampingControl");
+      const dampingDisplay = document.getElementById("dampingValue");
+
+      dampingInput.addEventListener("input", (e) => {
+        config.damping = parseFloat(e.target.value);
+        dampingDisplay.textContent = config.damping.toFixed(3);
+      });
+
+      // Ball Class
+      class Ball {
+        constructor(id, x, y) {
+          this.id = id;
+          this.originX = x; // The pivot point on the ceiling
+          this.originY = y;
+          this.angle = 0; // Angle from vertical
+          this.aVelocity = 0; // Angular velocity
+          this.aAcceleration = 0;
+          this.mass = 10;
+
+          // Current position (calculated from angle)
+          this.x = this.originX;
+          this.y = this.originY + config.ropeLength;
+        }
+
+        update() {
+          // If being dragged, physics is overridden by mouse
+          if (draggedBall === this) return;
+
+          // Pendulum Physics Formula: Angular Acceleration = (-g / length) * sin(theta)
+          let force =
+            (-config.gravity / config.ropeLength) * Math.sin(this.angle);
+
+          this.aAcceleration = force;
+          this.aVelocity += this.aAcceleration;
+          this.aVelocity *= config.damping; // Apply air resistance
+          this.angle += this.aVelocity;
+
+          // Stop micro-movements when nearly stopped
+          if (
+            Math.abs(this.aVelocity) < 0.0001 &&
+            Math.abs(this.angle) < 0.0001
+          ) {
+            this.aVelocity = 0;
+            this.angle = 0;
+          }
+
+          this.calculatePosition();
+        }
+
+        calculatePosition() {
+          this.x = this.originX + Math.sin(this.angle) * config.ropeLength;
+          this.y = this.originY + Math.cos(this.angle) * config.ropeLength;
+        }
+
+        draw() {
+          // Draw Rope
+          ctx.beginPath();
+          ctx.moveTo(this.originX, this.originY);
+          ctx.lineTo(this.x, this.y);
+          ctx.strokeStyle = "rgba(200, 200, 200, 0.5)";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          // Draw Ball (Metallic Gradient)
+          let gradient = ctx.createRadialGradient(
+            this.x - config.ballRadius / 3,
+            this.y - config.ballRadius / 3,
+            config.ballRadius / 10,
+            this.x,
+            this.y,
+            config.ballRadius
+          );
+
+          gradient.addColorStop(0, "#fff"); // Highlight
+          gradient.addColorStop(0.2, "#d4d4d4"); // Light grey
+          gradient.addColorStop(0.5, "#6b6b6b"); // Mid grey
+          gradient.addColorStop(1, "#242424"); // Shadow edge
+
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, config.ballRadius, 0, Math.PI * 2);
+          ctx.fillStyle = gradient;
+          ctx.fill();
+
+          // subtle border
+          ctx.strokeStyle = "#111";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      }
+
+      // Initialization
+      function init() {
+        balls = [];
+        resize();
+
+        // Center the cradle
+        const totalWidth = config.ballCount * (config.ballRadius * 2);
+        const startX = (width - totalWidth) / 2 + config.ballRadius;
+        const startY = height / 3;
+
+        for (let i = 0; i < config.ballCount; i++) {
+          balls.push(new Ball(i, startX + i * config.ballRadius * 2, startY));
+        }
+      }
+
+      function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+
+        // Recenter if balls exist
+        if (balls.length > 0) {
+          const totalWidth = config.ballCount * (config.ballRadius * 2);
+          const startX = (width - totalWidth) / 2 + config.ballRadius;
+          const startY = height / 3;
+          balls.forEach((b, i) => {
+            b.originX = startX + i * config.ballRadius * 2;
+            b.originY = startY;
+            b.calculatePosition();
+          });
+        }
+      }
+
+      function resolveCollisions() {
+        // We check adjacent balls. In a Newton's cradle, balls line up perfectly.
+        // Collision happens when distance < 2 * radius
+
+        for (let i = 0; i < balls.length - 1; i++) {
+          let b1 = balls[i];
+          let b2 = balls[i + 1];
+
+          // Calculate distance between centers
+          let dx = b2.x - b1.x;
+          let dy = b2.y - b1.y;
+          let distance = Math.sqrt(dx * dx + dy * dy);
+
+          // If touching or overlapping
+          if (distance < config.ballRadius * 2) {
+            // 1. Kinetic Energy / Momentum Transfer Logic
+            let v1 = b1.aVelocity;
+            let v2 = b2.aVelocity;
+
+            // Only process collision if they are moving towards each other
+            if (v1 - v2 > 0) {
+              b1.aVelocity = v2;
+              b2.aVelocity = v1;
+
+              // 2. Positional Correction (Anti-Stick)
+              // If b1 is pressed into b2 (angle of b1 > angle of b2), correct it
+              if (b1.angle >= b2.angle) {
+                const mid = (b1.angle + b2.angle) / 2;
+                // Force a tiny separation to prevent sticking
+                const sep = 0.0001;
+                b1.angle = mid - sep;
+                b2.angle = mid + sep;
+              }
+
+              // Recalculate pos immediately for drawing frame
+              b1.calculatePosition();
+              b2.calculatePosition();
+            }
+          }
+        }
+      }
+
+      // Main Animation Loop
+      function animate() {
+        ctx.clearRect(0, 0, width, height);
+
+        // Draw Top Bar
+        if (balls.length > 0) {
+          ctx.beginPath();
+          ctx.moveTo(balls[0].originX - 20, balls[0].originY);
+          ctx.lineTo(balls[balls.length - 1].originX + 20, balls[0].originY);
+          ctx.lineWidth = 10;
+          ctx.strokeStyle = "#444";
+          ctx.lineCap = "round";
+          ctx.stroke();
+        }
+
+        // Physics sub-steps for stability
+        // We run collision detection multiple times per frame for better accuracy
+        balls.forEach((ball) => ball.update());
+
+        // Run collision resolution enough times to propagate momentum through the whole chain in one frame
+        for (let i = 0; i < balls.length; i++) {
+          resolveCollisions();
+        }
+
+        // Draw
+        balls.forEach((ball) => ball.draw());
+
+        requestAnimationFrame(animate);
+      }
+
+      // Interactions
+      function getMousePos(evt) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+        const clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
+        return {
+          x: clientX - rect.left,
+          y: clientY - rect.top,
+        };
+      }
+
+      function handleStart(evt) {
+        // evt.preventDefault(); // Prevents scrolling on touch
+        const pos = getMousePos(evt);
+
+        // Find clicked ball
+        balls.forEach((ball) => {
+          let dx = pos.x - ball.x;
+          let dy = pos.y - ball.y;
+          if (Math.sqrt(dx * dx + dy * dy) < config.ballRadius + 10) {
+            // +10 hitbox buffer
+            draggedBall = ball;
+            ball.aVelocity = 0; // Stop momentum while holding
+          }
+        });
+      }
+
+      function handleMove(evt) {
+        if (!draggedBall) return;
+        // evt.preventDefault();
+
+        const pos = getMousePos(evt);
+
+        // Calculate angle based on mouse position relative to pivot
+        let dx = pos.x - draggedBall.originX;
+        let dy = pos.y - draggedBall.originY;
+
+        let newAngle = Math.atan2(dx, dy);
+
+        // Constrain angle
+        const maxAngle = Math.PI / 1.5;
+        if (newAngle > maxAngle) newAngle = maxAngle;
+        if (newAngle < -maxAngle) newAngle = -maxAngle;
+
+        draggedBall.angle = newAngle;
+        draggedBall.aVelocity = 0;
+
+        // --- Propagate movement to neighbors ---
+        // If dragging left, ensure left neighbors are pushed left
+        // Constraint: angle[i] must be <= angle[i+1]
+        for (let i = draggedBall.id - 1; i >= 0; i--) {
+          if (balls[i].angle > balls[i + 1].angle) {
+            balls[i].angle = balls[i + 1].angle;
+            balls[i].aVelocity = 0;
+          }
+        }
+
+        // If dragging right, ensure right neighbors are pushed right
+        for (let i = draggedBall.id + 1; i < balls.length; i++) {
+          if (balls[i].angle < balls[i - 1].angle) {
+            balls[i].angle = balls[i - 1].angle;
+            balls[i].aVelocity = 0;
+          }
+        }
+
+        // Update positions for visual feedback immediately
+        balls.forEach((b) => b.calculatePosition());
+      }
+
+      function handleEnd(evt) {
+        draggedBall = null;
+      }
+
+      // Event Listeners
+      window.addEventListener("resize", resize);
+
+      canvas.addEventListener("mousedown", handleStart);
+      window.addEventListener("mousemove", handleMove);
+      window.addEventListener("mouseup", handleEnd);
+
+      // Touch support
+      canvas.addEventListener("touchstart", handleStart, { passive: false });
+      window.addEventListener("touchmove", handleMove, { passive: false });
+      window.addEventListener("touchend", handleEnd);
+
+      // Start
+      init();
+      animate();
+    </script>
+  </body>
+</html>
